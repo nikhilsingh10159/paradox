@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: paradox-backend
+    env: python
+    region: ohio
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: CORS_ORIGINS
+        value: "https://your-vercel-app-url.vercel.app" # UPDATE THIS AFTER VERCEL DEPLOYMENT
+      - key: OPENAI_API_KEY
+        sync: false # Requires manual entry in the Render dashboard
