@@ -177,4 +177,5 @@ export default function ReputationCard({ reputation: propReputation }: Reputatio
         </div>
       )}
     </section>
+  );
 }

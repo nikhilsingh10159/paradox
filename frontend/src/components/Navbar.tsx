@@ -40,7 +40,7 @@ export default function Navbar() {
       setCustomNameInput(defaultName);
       setIsEditingName(true);
     }
-  }, [authenticated, userProfile?.handle, user?.email?.address]);
+  }, [authenticated, userProfile?.handle, user?.email?.address, isEditingName]);
 
   const handleLogout = () => {
     appLogout();

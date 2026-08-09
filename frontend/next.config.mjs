@@ -1,10 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@privy-io/react-auth'],
+  experimental: {
+    optimizePackageImports: ['@privy-io/react-auth'],
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      config.output.chunkLoadingGlobal = 'webpackChunkParadoxApp';
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,

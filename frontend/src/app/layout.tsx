@@ -10,8 +10,11 @@ import { ToastProvider } from "@/components/Toast";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Yield-Escrow Protocol",
+  title: "Paradox — Smart Escrow & AI Dispute Platform",
   description: "Reputation-Weighted Escrow with Multi-Modal AI Dispute Resolution",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
