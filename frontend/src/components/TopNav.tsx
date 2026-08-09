@@ -3,10 +3,17 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
+import { usePrivy } from '@privy-io/react-auth';
 
 export default function TopNav() {
-  const { userAddress, logout } = useAppContext();
+  const { userAddress, logout: appLogout } = useAppContext();
+  const { logout: privyLogout } = usePrivy();
   const pathname = usePathname();
+
+  const handleLogout = () => {
+    appLogout();
+    privyLogout();
+  };
 
   const truncateAddress = (addr: string | null) => {
     if (!addr) return "";
@@ -51,7 +58,7 @@ export default function TopNav() {
             <button className="text-gray-900 text-sm font-medium tracking-tight">
               {truncateAddress(userAddress)}
             </button>
-            <button onClick={logout} className="text-[#0066CC] hover:text-[#004C99] text-sm font-medium tracking-tight transition-colors">
+            <button onClick={handleLogout} className="text-[#0066CC] hover:text-[#004C99] text-sm font-medium tracking-tight transition-colors">
               Sign Out
             </button>
           </div>

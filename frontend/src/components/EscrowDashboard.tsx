@@ -1,24 +1,19 @@
+'use client';
 import React, { useState } from 'react';
 import { useAppContext, EscrowStatus } from '@/context/AppContext';
+import HireModal from './HireModal';
+import { useWallets } from '@privy-io/react-auth';
+import { BrowserProvider, Contract } from 'ethers';
+import { ESCROW_CONTRACT_ADDRESS, ESCROW_ABI } from '@/config/contracts';
 
 export default function EscrowDashboard() {
-  const { escrows, updateEscrowStatus, createEscrow } = useAppContext();
+  const { escrows, updateEscrowStatus } = useAppContext();
+  const { wallets } = useWallets();
   const [showModal, setShowModal] = useState(false);
-  const [newFreelancer, setNewFreelancer] = useState("");
-  const [newAmount, setNewAmount] = useState(0);
-  const [newDesc, setNewDesc] = useState("");
   const [deliverables, setDeliverables] = useState<{[key:string]: string}>({});
-
-  const handleFund = (e: React.FormEvent) => {
-    e.preventDefault();
-    if(newFreelancer && newAmount > 0 && newDesc) {
-      createEscrow(newFreelancer, newAmount, newDesc);
-      setShowModal(false);
-      setNewFreelancer("");
-      setNewAmount(0);
-      setNewDesc("");
-    }
-  };
+  
+  // Track loading state for each escrow ID
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
   const handleDeliverableChange = (id: string, val: string) => {
     setDeliverables(prev => ({...prev, [id]: val}));
@@ -27,11 +22,39 @@ export default function EscrowDashboard() {
   const handleSubmit = (id: string) => {
     updateEscrowStatus(id, "Under AI Review", { deliverableLink: deliverables[id] });
   };
-  const handleDispute = (id: string) => {
-    updateEscrowStatus(id, "Disputed");
-  };
-  const handleRelease = (id: string) => {
-    updateEscrowStatus(id, "Released");
+
+  const executeEscrowAction = async (id: string, actionName: 'release' | 'refund') => {
+    if (!wallets.length) {
+      alert("Please connect a wallet first.");
+      return;
+    }
+
+    try {
+      setLoadingAction(`${id}-${actionName}`);
+      
+      const wallet = wallets[0];
+      const provider = await wallet.getEthereumProvider();
+      const ethersProvider = new BrowserProvider(provider);
+      const signer = await ethersProvider.getSigner();
+
+      const escrowContract = new Contract(ESCROW_CONTRACT_ADDRESS, ESCROW_ABI, signer);
+
+      if (actionName === 'release') {
+        const tx = await escrowContract.releaseToFreelancer(id);
+        await tx.wait();
+        updateEscrowStatus(id, "Released");
+      } else if (actionName === 'refund') {
+        const tx = await escrowContract.refundClient(id);
+        await tx.wait();
+        updateEscrowStatus(id, "Disputed"); // Using Disputed as a fallback for refunded state visually
+      }
+      
+    } catch (error: any) {
+      console.error(error);
+      alert(error?.reason || error?.message || "Transaction failed or was rejected.");
+    } finally {
+      setLoadingAction(null);
+    }
   };
 
   return (
@@ -55,7 +78,7 @@ export default function EscrowDashboard() {
             <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 p-6 bg-[#F5F5F7] rounded-2xl gap-6">
               <div>
                 <p className="text-gray-500 text-sm font-medium mb-1">Escrow Amount</p>
-                <p className="text-3xl font-semibold tracking-tight text-gray-900">${escrow.amount.toLocaleString()} <span className="text-gray-500 text-lg font-medium">USDC</span></p>
+                <p className="text-3xl font-semibold tracking-tight text-gray-900">${escrow.amount.toLocaleString()} <span className="text-gray-500 text-lg font-medium">Platform Coins</span></p>
               </div>
               <div>
                 <p className="text-gray-500 text-sm font-medium mb-2">Status</p>
@@ -93,11 +116,21 @@ export default function EscrowDashboard() {
 
               {escrow.status === "Under AI Review" && (
                 <div className="flex gap-4 pt-6 border-t border-gray-100">
-                  <button onClick={() => handleRelease(escrow.id)} className="flex-1 px-6 py-4 bg-black hover:bg-gray-800 text-white rounded-2xl font-medium tracking-tight transition-colors">
-                    Approve & Release Funds
+                  <button 
+                    onClick={() => executeEscrowAction(escrow.id, 'release')} 
+                    disabled={loadingAction === `${escrow.id}-release` || loadingAction === `${escrow.id}-refund`}
+                    className="flex-1 px-6 py-4 bg-black hover:bg-gray-800 text-white rounded-2xl font-medium tracking-tight transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+                  >
+                    {loadingAction === `${escrow.id}-release` && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                    Approve & Release Coins
                   </button>
-                  <button onClick={() => handleDispute(escrow.id)} className="flex-1 px-6 py-4 bg-[#F5F5F7] hover:bg-[#E8E8ED] text-[#C5221F] rounded-2xl font-medium tracking-tight transition-colors">
-                    Raise Dispute
+                  <button 
+                    onClick={() => executeEscrowAction(escrow.id, 'refund')} 
+                    disabled={loadingAction === `${escrow.id}-release` || loadingAction === `${escrow.id}-refund`}
+                    className="flex-1 px-6 py-4 bg-[#FCE8E8] hover:bg-[#F9D2D2] text-[#C5221F] rounded-2xl font-medium tracking-tight transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+                  >
+                    {loadingAction === `${escrow.id}-refund` && <div className="w-4 h-4 border-2 border-red-500/30 border-t-[#C5221F] rounded-full animate-spin"></div>}
+                    Request Refund
                   </button>
                 </div>
               )}
@@ -106,31 +139,7 @@ export default function EscrowDashboard() {
         ))
       )}
 
-      {showModal && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white border border-gray-100 p-10 rounded-[32px] max-w-md w-full relative shadow-2xl">
-            <button onClick={() => setShowModal(false)} className="absolute top-6 right-6 w-8 h-8 flex items-center justify-center rounded-full bg-[#F5F5F7] text-gray-500 hover:text-gray-900 transition-colors">✕</button>
-            <h3 className="text-2xl font-semibold tracking-tight text-gray-900 mb-8">New Milestone</h3>
-            <form onSubmit={handleFund} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium tracking-tight text-gray-700 mb-2">Freelancer Address</label>
-                <input required type="text" value={newFreelancer} onChange={e => setNewFreelancer(e.target.value)} className="w-full bg-[#F5F5F7] border border-transparent rounded-2xl px-5 py-3 focus:outline-none focus:bg-white focus:border-gray-300 focus:ring-4 focus:ring-gray-100 transition-all font-medium text-gray-900" placeholder="0x..." />
-              </div>
-              <div>
-                <label className="block text-sm font-medium tracking-tight text-gray-700 mb-2">Amount (USDC)</label>
-                <input required type="number" min="1" value={newAmount || ""} onChange={e => setNewAmount(Number(e.target.value))} className="w-full bg-[#F5F5F7] border border-transparent rounded-2xl px-5 py-3 focus:outline-none focus:bg-white focus:border-gray-300 focus:ring-4 focus:ring-gray-100 transition-all font-medium text-gray-900" placeholder="1000" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium tracking-tight text-gray-700 mb-2">Requirements Description</label>
-                <textarea required value={newDesc} onChange={e => setNewDesc(e.target.value)} className="w-full bg-[#F5F5F7] border border-transparent rounded-2xl px-5 py-3 focus:outline-none focus:bg-white focus:border-gray-300 focus:ring-4 focus:ring-gray-100 transition-all font-medium text-gray-900 h-28 resize-none" placeholder="Build a landing page..."></textarea>
-              </div>
-              <button type="submit" className="w-full py-4 bg-[#0066CC] hover:bg-[#0052A3] text-white rounded-2xl font-medium tracking-tight transition-colors mt-2">
-                Fund Escrow
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      {showModal && <HireModal onClose={() => setShowModal(false)} />}
     </div>
   );
 }
