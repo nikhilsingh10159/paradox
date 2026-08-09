@@ -1,15 +1,14 @@
 'use client';
 import React, { useState } from 'react';
-import { useAppContext } from '@/context/AppContext';
+import { useAppContext, Job } from '@/context/AppContext';
 import { useBlockchainAction } from '@/hooks/useBlockchainAction';
 import HireModal from './HireModal';
 import ScopeModal from './client/ScopeModal';
 
 export default function EscrowDashboard() {
-  const { jobs, userProfile, releaseTranche, submitTranche, requestRefund } = useAppContext();
+  const { jobs, userProfile, releaseTranche, submitTranche, requestRefund, postJobModalOpen, setPostJobModalOpen } = useAppContext();
   const { execute, isLoading } = useBlockchainAction();
-  const [showModal, setShowModal] = useState(false);
-  const [scopeJob, setScopeJob] = useState<any>(null);
+  const [scopeJob, setScopeJob] = useState<Job | null>(null);
   const [deliverableLinks, setDeliverableLinks] = useState<{ [key: string]: string }>({});
 
   const role = userProfile?.role;
@@ -43,7 +42,7 @@ export default function EscrowDashboard() {
         </h2>
         {isClient && (
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => setPostJobModalOpen(true)}
             className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
           >
             + New Job
@@ -283,7 +282,7 @@ export default function EscrowDashboard() {
         </div>
       )}
 
-      {showModal && <HireModal onClose={() => setShowModal(false)} />}
+      {postJobModalOpen && <HireModal onClose={() => setPostJobModalOpen(false)} />}
       {scopeJob && <ScopeModal job={scopeJob} onClose={() => setScopeJob(null)} />}
     </div>
   );

@@ -63,7 +63,20 @@ const talent = [
   },
 ];
 
+import Link from 'next/link';
+import { useState } from 'react';
+import { useAppContext } from '@/context/AppContext';
+import HireModal from '@/components/HireModal';
+
 export default function FindTalentPage() {
+  const { setPostJobModalOpen, postJobModalOpen } = useAppContext();
+  const [selectedFreelancer, setSelectedFreelancer] = useState<string | null>(null);
+
+  const handleHireClick = (name: string) => {
+    setSelectedFreelancer(name);
+    setPostJobModalOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <main className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
@@ -123,16 +136,27 @@ export default function FindTalentPage() {
               </div>
 
               <div className="mt-6 flex gap-3">
-                <button className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">
+                <Link
+                  href="/messages"
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
                   Send Message
-                </button>
-                <button className="flex-1 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => handleHireClick(person.name)}
+                  className="flex-1 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+                >
                   Hire & Fund Escrow
                 </button>
               </div>
             </article>
           ))}
         </section>
+
+        {postJobModalOpen && (
+          <HireModal onClose={() => setPostJobModalOpen(false)} />
+        )}
       </main>
     </div>
   );

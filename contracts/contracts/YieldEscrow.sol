@@ -75,6 +75,7 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
     mapping(uint256 => mapping(uint256 => Tranche)) public tranches;
 
     uint256 public constant STAKE_AMOUNT = 50 * 10**6; // e.g. 50 USDC (assuming 6 decimals)
+    uint256 public constant MAX_TRANCHES = 20; // DoS guard: max tranches per job
 
     event MilestoneCreated(uint256 indexed id, address indexed client, address indexed freelancer, uint256 amount);
     event MilestoneFunded(uint256 indexed id);
@@ -82,6 +83,7 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
     event DisputeRaised(uint256 indexed id, address raisedBy);
     event DisputeResolved(uint256 indexed id, uint256 freelancerPayout, uint256 clientRefund, bool scopeCreepDetected);
     event FundsReleased(uint256 indexed id, address to, uint256 amount);
+    event YieldDistributed(uint256 indexed id, uint256 clientYield, uint256 freelancerYield);
     event TimeoutClaimed(uint256 indexed id, address claimedBy);
 
     event JobCreated(uint256 indexed jobId, address indexed client, address indexed freelancer, uint256 totalAmount);
@@ -90,6 +92,7 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
     event TrancheFundsReleased(uint256 indexed jobId, uint256 indexed trancheIndex, address to, uint256 amount);
     event TrancheDisputeRaised(uint256 indexed jobId, uint256 indexed trancheIndex, address raisedBy);
     event TrancheDisputeResolved(uint256 indexed jobId, uint256 indexed trancheIndex, uint256 freelancerPayout, uint256 clientRefund, bool scopeCreepDetected);
+    event TrancheYieldDistributed(uint256 indexed jobId, uint256 indexed trancheIndex, uint256 clientYield, uint256 freelancerYield);
 
     error InvalidStatus();
     error Unauthorized();
@@ -116,6 +119,18 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
 
     function setTrustedOracle(address _trustedOracle) external onlyOwner {
         trustedOracle = _trustedOracle;
+    }
+
+    // --- Internal helper: withdraw from Aave and calculate yield ---
+
+    /// @dev Withdraws `principal` from Aave, measures actual received amount,
+    ///      and returns (received, yieldEarned). yieldEarned = received - principal (or 0).
+    function _withdrawFromAave(uint256 principal) internal returns (uint256 received, uint256 yieldEarned) {
+        uint256 balanceBefore = acceptedToken.balanceOf(address(this));
+        aavePool.withdraw(address(acceptedToken), principal, address(this));
+        uint256 balanceAfter = acceptedToken.balanceOf(address(this));
+        received = balanceAfter - balanceBefore;
+        yieldEarned = received > principal ? received - principal : 0;
     }
 
     // --- Legacy Milestone Functions ---
@@ -195,17 +210,26 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
 
         m.status = MilestoneStatus.Released;
 
-        // Withdraw principal from Aave
-        aavePool.withdraw(address(acceptedToken), m.amount, address(this));
+        // Withdraw principal from Aave and capture any accrued yield
+        (uint256 received, uint256 yieldEarned) = _withdrawFromAave(m.amount);
 
         // Return client stake
         acceptedToken.safeTransfer(m.client, m.clientStake);
         m.clientStake = 0;
 
-        // Pay freelancer principal + stake
-        uint256 totalFreelancerPayout = m.amount + m.freelancerStake;
+        // Pay freelancer principal + stake + all yield as bonus for successful delivery
+        uint256 totalFreelancerPayout = received + m.freelancerStake;
         acceptedToken.safeTransfer(m.freelancer, totalFreelancerPayout);
         m.freelancerStake = 0;
+
+        // Update reputation
+        if (reputationSBT != address(0)) {
+            IReputationSBT(reputationSBT).recordSuccess(m.freelancer);
+        }
+
+        if (yieldEarned > 0) {
+            emit YieldDistributed(id, 0, yieldEarned);
+        }
 
         emit FundsReleased(id, m.freelancer, totalFreelancerPayout);
     }
@@ -234,15 +258,15 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
 
         m.status = MilestoneStatus.Released; // Resolved
 
-        // Withdraw principal from Aave
-        aavePool.withdraw(address(acceptedToken), m.amount, address(this));
+        // Withdraw principal from Aave and capture yield
+        (uint256 received, uint256 yieldEarned) = _withdrawFromAave(m.amount);
 
-        uint256 freelancerPayout = (m.amount * freelancerPct) / 100;
-        uint256 clientRefund = (m.amount * clientPct) / 100;
+        uint256 freelancerPayout = (received * freelancerPct) / 100;
+        uint256 clientRefund = (received * clientPct) / 100;
 
         // Slashing logic
         if (scopeCreep) {
-            // Client slashed, freelancer gets client stake
+            // Client slashed, freelancer gets client stake + all yield
             freelancerPayout += m.clientStake;
             freelancerPayout += m.freelancerStake;
         } else {
@@ -261,6 +285,16 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
             acceptedToken.safeTransfer(m.client, clientRefund);
         }
 
+        // Update reputation based on dispute outcome
+        if (reputationSBT != address(0)) {
+            bool freelancerWon = freelancerPct > 50;
+            IReputationSBT(reputationSBT).recordDisputeOutcome(m.freelancer, freelancerWon);
+        }
+
+        if (yieldEarned > 0) {
+            emit YieldDistributed(id, scopeCreep ? 0 : 0, yieldEarned);
+        }
+
         emit DisputeResolved(id, freelancerPayout, clientRefund, scopeCreep);
     }
 
@@ -272,15 +306,19 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
 
         m.status = MilestoneStatus.Released;
 
-        // Withdraw principal from Aave
-        aavePool.withdraw(address(acceptedToken), m.amount, address(this));
+        // Withdraw from Aave and capture yield
+        (uint256 received, uint256 yieldEarned) = _withdrawFromAave(m.amount);
 
-        // Freelancer gets everything
-        uint256 totalPayout = m.amount + m.clientStake + m.freelancerStake;
+        // Freelancer gets everything: principal + yield + both stakes
+        uint256 totalPayout = received + m.clientStake + m.freelancerStake;
         acceptedToken.safeTransfer(m.freelancer, totalPayout);
         
         m.clientStake = 0;
         m.freelancerStake = 0;
+
+        if (yieldEarned > 0) {
+            emit YieldDistributed(id, 0, yieldEarned);
+        }
 
         emit TimeoutClaimed(id, msg.sender);
     }
@@ -292,7 +330,9 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
         uint256[] calldata amounts,
         string[] calldata requirementsCIDs
     ) external returns (uint256) {
-        require(amounts.length > 0 && amounts.length == requirementsCIDs.length, "Invalid arrays");
+        // FIX: Bound array size to prevent DoS via Out-Of-Gas
+        require(amounts.length > 0 && amounts.length <= MAX_TRANCHES, "Tranche count out of bounds");
+        require(amounts.length == requirementsCIDs.length, "Arrays length mismatch");
         
         jobCount++;
         uint256 jobId = jobCount;
@@ -390,14 +430,18 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
         t.status = MilestoneStatus.Released;
         job.completedTranches++;
 
-        // Withdraw principal from Aave
-        aavePool.withdraw(address(acceptedToken), t.amount, address(this));
+        // Withdraw this tranche's principal from Aave and capture yield
+        (uint256 received, uint256 yieldEarned) = _withdrawFromAave(t.amount);
 
-        uint256 freelancerPayout = t.amount;
-        uint256 clientRefund = 0;
+        // Split yield 50/50 between client and freelancer on each tranche
+        uint256 clientYieldShare = yieldEarned / 2;
+        uint256 freelancerYieldShare = yieldEarned - clientYieldShare;
+
+        uint256 freelancerPayout = received + freelancerYieldShare;
+        uint256 clientRefund = clientYieldShare;
 
         if (job.completedTranches == job.trancheCount) {
-            // Last tranche, return stakes
+            // Last tranche: return stakes
             clientRefund += job.clientStake;
             freelancerPayout += job.freelancerStake;
             job.clientStake = 0;
@@ -413,6 +457,10 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
         }
         if (clientRefund > 0) {
             acceptedToken.safeTransfer(job.client, clientRefund);
+        }
+
+        if (yieldEarned > 0) {
+            emit TrancheYieldDistributed(jobId, trancheIndex, clientYieldShare, freelancerYieldShare);
         }
 
         emit TrancheFundsReleased(jobId, trancheIndex, job.freelancer, freelancerPayout);
@@ -446,23 +494,34 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
         t.status = MilestoneStatus.Released; // Resolved
         job.completedTranches++;
 
-        // Withdraw principal from Aave
-        aavePool.withdraw(address(acceptedToken), t.amount, address(this));
+        // Withdraw this tranche's principal from Aave and capture yield
+        (uint256 received, uint256 yieldEarned) = _withdrawFromAave(t.amount);
 
-        uint256 freelancerPayout = (t.amount * freelancerPct) / 100;
-        uint256 clientRefund = (t.amount * clientPct) / 100;
+        uint256 freelancerPayout = (received * freelancerPct) / 100;
+        uint256 clientRefund = (received * clientPct) / 100;
 
         if (job.completedTranches == job.trancheCount) {
-            // Conclude stakes logic
+            // Conclude stakes logic on final tranche
             if (scopeCreep) {
                 freelancerPayout += job.clientStake;
                 freelancerPayout += job.freelancerStake;
+                // Freelancer also gets all yield on scope creep (client penalized)
+                freelancerPayout += yieldEarned;
             } else {
                 clientRefund += job.clientStake;
                 freelancerPayout += job.freelancerStake;
+                // Split yield evenly
+                uint256 clientYieldShare = yieldEarned / 2;
+                clientRefund += clientYieldShare;
+                freelancerPayout += yieldEarned - clientYieldShare;
             }
             job.clientStake = 0;
             job.freelancerStake = 0;
+        } else {
+            // Non-final tranche: still split yield
+            uint256 clientYieldShare = yieldEarned / 2;
+            clientRefund += clientYieldShare;
+            freelancerPayout += yieldEarned - clientYieldShare;
         }
 
         if (freelancerPayout > 0) {
@@ -477,8 +536,6 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
             bool clientWon = clientPct > 50;
             if (freelancerWon) IReputationSBT(reputationSBT).recordDisputeOutcome(t.freelancer, true);
             else if (clientWon) IReputationSBT(reputationSBT).recordDisputeOutcome(t.freelancer, false);
-            
-            // Note: IReputationSBT currently only has client/freelancer methods. We record outcome for freelancer.
         }
 
         emit TrancheDisputeResolved(jobId, trancheIndex, freelancerPayout, clientRefund, scopeCreep);

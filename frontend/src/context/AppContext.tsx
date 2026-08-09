@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
+import { useEscrowContract } from '@/hooks/useEscrowContract';
 
 export type TrancheStatus = 'Pending' | 'Funded' | 'Submitted' | 'Under AI Review' | 'Released' | 'Disputed';
 
@@ -38,6 +39,8 @@ export interface ReputationData {
   trustTier: number;
   totalJobs: number;
   successfulJobs: number;
+  totalDisputes: number;
+  disputesWon: number;
 }
 
 export interface UserProfile {
@@ -232,10 +235,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
       trustTier: 3,
       totalJobs: 28,
       successfulJobs: 27,
+      totalDisputes: 2,
+      disputesWon: 1,
     },
   });
 
   const [jobs, setJobs] = useState<Job[]>(MOCK_JOBS);
+
+  // ---- On-chain sync ----
+  // When connected to a live Hardhat node (isDemo=false), replace mock jobs
+  // with real state read from the YieldEscrow smart contract.
+  const { isDemo, syncJobsFromChain } = useEscrowContract();
+
+  useEffect(() => {
+    if (isDemo || !userAddress) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const onChainJobs = await syncJobsFromChain(userAddress);
+        if (!cancelled && onChainJobs.length > 0) {
+          setJobs(onChainJobs);
+        }
+      } catch (e) {
+        console.error('[AppContext] Failed to sync jobs from chain:', e);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [isDemo, userAddress, syncJobsFromChain]);
 
   const hasProfile = useCallback((address: string) => {
     const profiles = getProfiles();
@@ -262,6 +290,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           trustTier: 3,
           totalJobs: 28,
           successfulJobs: 27,
+          totalDisputes: 2,
+          disputesWon: 1,
         },
       });
     }

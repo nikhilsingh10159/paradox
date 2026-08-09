@@ -18,6 +18,9 @@ export default function HireModal({ onClose }: HireModalProps) {
   
   const [status, setStatus] = useState<'idle' | 'processing' | 'success'>('idle');
 
+  // Derived total — computed at component scope so JSX can access it
+  const totalAmount = tranches.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
   const handleAddMilestone = () => {
     setTranches([...tranches, { amount: '', requirements: '' }]);
   };
@@ -36,7 +39,7 @@ export default function HireModal({ onClose }: HireModalProps) {
     setTranches(updated);
   };
 
-  const { execute, isDemo } = useBlockchainAction();
+  const { execute } = useBlockchainAction();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

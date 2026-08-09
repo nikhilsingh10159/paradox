@@ -10,10 +10,12 @@ import FeaturedGrid from '@/components/FeaturedGrid';
 import FeaturesSection from '@/components/FeaturesSection';
 import HowItWorks from '@/components/HowItWorks';
 
+import HireModal from '@/components/HireModal';
+
 export default function Home() {
   const { handleGatedAction } = useGatedAction();
   const { ready, authenticated, user } = usePrivy();
-  const { login: appLogin } = useAppContext();
+  const { login: appLogin, postJobModalOpen, setPostJobModalOpen } = useAppContext();
 
   useEffect(() => {
     if (ready && authenticated && user) {
@@ -29,12 +31,12 @@ export default function Home() {
 
   const handlePostJob = () => {
     handleGatedAction(() => {
-      console.log('Opening post job modal');
+      setPostJobModalOpen(true);
     });
   };
 
   const handleExploreTalent = () => {
-    document.getElementById('showcase')?.scrollIntoView({ behavior: 'smooth' });
+    window.location.href = '/find-talent';
   };
 
   return (
@@ -76,6 +78,9 @@ export default function Home() {
           </div>
         </section>
       </main>
+
+      {postJobModalOpen && <HireModal onClose={() => setPostJobModalOpen(false)} />}
     </div>
   );
 }
+

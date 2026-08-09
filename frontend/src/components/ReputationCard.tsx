@@ -10,6 +10,30 @@ export default function ReputationCard({ reputation: propReputation }: Reputatio
   const { userProfile } = useAppContext();
   const reputation = propReputation || userProfile?.reputation;
 
+  const [aiAnalysis, setAiAnalysis] = React.useState<{
+    freelancer_payout_percentage: number;
+    client_refund_percentage: number;
+    dispute_reasoning: string;
+    loading: boolean;
+  } | null>(null);
+
+  React.useEffect(() => {
+    if (reputation && (reputation.totalDisputes > 0 || reputation.disputesWon > 0)) {
+      setAiAnalysis({ freelancer_payout_percentage: 0, client_refund_percentage: 0, dispute_reasoning: '', loading: true });
+      fetch((process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000') + '/dispute/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          milestone_requirements: "Past disputes mock requirements",
+          submitted_deliverable: "Past deliverables",
+          chat_logs: ["Client: not exactly what I wanted"]
+        })
+      }).then(res => res.json())
+        .then(data => setAiAnalysis({ ...data, loading: false }))
+        .catch(() => setAiAnalysis(null));
+    }
+  }, [reputation]);
+
   if (!reputation) return null;
 
   const getTierClass = (tier: number) => {
@@ -48,30 +72,6 @@ export default function ReputationCard({ reputation: propReputation }: Reputatio
     { label: 'Anti-Ghosting', value: reputation.antiGhostingRating },
     { label: 'Completion Rate', value: reputation.completionRate }
   ];
-
-  const [aiAnalysis, setAiAnalysis] = React.useState<{
-    freelancer_payout_percentage: number;
-    client_refund_percentage: number;
-    dispute_reasoning: string;
-    loading: boolean;
-  } | null>(null);
-
-  React.useEffect(() => {
-    if (reputation.totalDisputes > 0 || reputation.disputesWon > 0) {
-      setAiAnalysis({ freelancer_payout_percentage: 0, client_refund_percentage: 0, dispute_reasoning: '', loading: true });
-      fetch(process.env.NEXT_PUBLIC_BACKEND_URL + '/dispute/resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          milestone_requirements: "Past disputes mock requirements",
-          submitted_deliverable: "Past deliverables",
-          chat_logs: ["Client: not exactly what I wanted"]
-        })
-      }).then(res => res.json())
-        .then(data => setAiAnalysis({ ...data, loading: false }))
-        .catch(() => setAiAnalysis(null));
-    }
-  }, [reputation]);
 
   return (
     <div className="p-6 max-w-4xl mx-auto bg-gray-900 rounded-xl shadow-2xl text-white border border-gray-800 mt-8 backdrop-blur-md bg-opacity-90">
