@@ -114,6 +114,10 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
         reputationSBT = _reputationSBT;
     }
 
+    function setTrustedOracle(address _trustedOracle) external onlyOwner {
+        trustedOracle = _trustedOracle;
+    }
+
     // --- Legacy Milestone Functions ---
 
     function createMilestone(
@@ -448,7 +452,7 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
         uint256 freelancerPayout = (t.amount * freelancerPct) / 100;
         uint256 clientRefund = (t.amount * clientPct) / 100;
 
-        if (job.completedTranches == job.trancheCount || freelancerPayout == 0 || clientRefund == 0) {
+        if (job.completedTranches == job.trancheCount) {
             // Conclude stakes logic
             if (scopeCreep) {
                 freelancerPayout += job.clientStake;
@@ -478,5 +482,9 @@ contract YieldEscrow is Ownable, ReentrancyGuard {
         }
 
         emit TrancheDisputeResolved(jobId, trancheIndex, freelancerPayout, clientRefund, scopeCreep);
+    }
+
+    function getTrancheStatus(uint256 jobId, uint256 trancheIndex) external view returns (MilestoneStatus) {
+        return tranches[jobId][trancheIndex].status;
     }
 }

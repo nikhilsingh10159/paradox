@@ -1,0 +1,8 @@
+fastapi==0.109.2
+uvicorn==0.27.1
+pydantic==2.6.1
+pydantic-settings==2.1.0
+web3==6.15.1
+langchain-openai==0.0.5
+langchain-core==0.1.22
+python-dotenv==1.0.1

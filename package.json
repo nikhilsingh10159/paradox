@@ -2,10 +2,11 @@
   "name": "paradox",
   "private": true,
   "scripts": {
-    "dev": "npm --prefix frontend run dev",
-    "build": "npm --prefix frontend run build",
-    "start": "npm --prefix frontend run start",
-    "lint": "npm --prefix frontend run lint"
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "cd backend && python main.py",
+    "dev:oracle": "cd backend && python oracle_listener.py",
+    "dev:node": "npm --prefix contracts run node",
+    "deploy:local": "npm --prefix contracts run deploy:local"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.37.0"

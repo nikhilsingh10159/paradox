@@ -1,11 +1,15 @@
 'use client';
 import React, { useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
+import { useBlockchainAction } from '@/hooks/useBlockchainAction';
 import HireModal from './HireModal';
+import ScopeModal from './client/ScopeModal';
 
 export default function EscrowDashboard() {
-  const { jobs, userProfile, releaseTranche, submitTranche } = useAppContext();
+  const { jobs, userProfile, releaseTranche, submitTranche, requestRefund } = useAppContext();
+  const { execute, isLoading } = useBlockchainAction();
   const [showModal, setShowModal] = useState(false);
+  const [scopeJob, setScopeJob] = useState<any>(null);
   const [deliverableLinks, setDeliverableLinks] = useState<{ [key: string]: string }>({});
 
   const role = userProfile?.role;
@@ -167,11 +171,20 @@ export default function EscrowDashboard() {
                         type="button"
                         onClick={() => {
                           const submittedTranche = job.tranches.find(t => t.status === 'Submitted');
-                          if (submittedTranche) releaseTranche(job.id, submittedTranche.id);
+                          if (submittedTranche) {
+                            const trancheIndex = job.tranches.findIndex(t => t.id === submittedTranche.id);
+                            execute(
+                              `release-${submittedTranche.id}`,
+                              'Release Funds',
+                              () => releaseTranche(job.id, submittedTranche.id),
+                              async (contract) => await contract.releaseTranche(parseInt(job.id), trancheIndex)
+                            );
+                          }
                         }}
-                        className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                        disabled={isLoading(`release-${job.tranches.find(t => t.status === 'Submitted')?.id}`)}
+                        className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center"
                       >
-                        Review Work & Approve Release
+                        {isLoading(`release-${job.tranches.find(t => t.status === 'Submitted')?.id}`) ? 'Processing...' : 'Review Work & Approve Release'}
                       </button>
                     )}
 
@@ -179,15 +192,29 @@ export default function EscrowDashboard() {
                       <>
                         <button
                           type="button"
+                          onClick={() => setScopeJob(job)}
                           className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
                         >
                           View Agreement Clauses
                         </button>
                         <button
                           type="button"
-                          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                          onClick={() => {
+                             const fundedTranche = job.tranches.find(t => t.status === 'Funded');
+                             if (fundedTranche) {
+                               const trancheIndex = job.tranches.findIndex(t => t.id === fundedTranche.id);
+                               execute(
+                                 `refund-${fundedTranche.id}`,
+                                 'Request Refund',
+                                 () => requestRefund(job.id, fundedTranche.id),
+                                 async (contract) => await contract["raiseDispute(uint256,uint256)"](parseInt(job.id), trancheIndex)
+                               );
+                             }
+                          }}
+                          disabled={isLoading(`refund-${job.tranches.find(t => t.status === 'Funded')?.id}`)}
+                          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50 flex items-center justify-center"
                         >
-                          Request Refund
+                          {isLoading(`refund-${job.tranches.find(t => t.status === 'Funded')?.id}`) ? 'Processing...' : 'Request Refund'}
                         </button>
                       </>
                     )}
@@ -227,14 +254,23 @@ export default function EscrowDashboard() {
                               placeholder="Paste deliverable link..."
                               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-300 focus:outline-none"
                             />
-                            <button
-                              type="button"
-                              onClick={() => submitTranche(job.id, tranche.id, deliverableLinks[tranche.id] || '')}
-                              disabled={!deliverableLinks[tranche.id]}
-                              className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              Submit Work
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const link = deliverableLinks[tranche.id] || '';
+                                  const trancheIndex = job.tranches.findIndex(t => t.id === tranche.id);
+                                  execute(
+                                    `submit-${tranche.id}`,
+                                    'Submit Work',
+                                    () => submitTranche(job.id, tranche.id, link),
+                                    async (contract) => await contract["submitDeliverable(uint256,uint256,string)"](parseInt(job.id), trancheIndex, link)
+                                  );
+                                }}
+                                disabled={!deliverableLinks[tranche.id] || isLoading(`submit-${tranche.id}`)}
+                                className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center"
+                              >
+                                {isLoading(`submit-${tranche.id}`) ? 'Processing...' : 'Submit Work'}
+                              </button>
                           </div>
                         ))}
                       </div>
@@ -248,6 +284,7 @@ export default function EscrowDashboard() {
       )}
 
       {showModal && <HireModal onClose={() => setShowModal(false)} />}
+      {scopeJob && <ScopeModal job={scopeJob} onClose={() => setScopeJob(null)} />}
     </div>
   );
 }

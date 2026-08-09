@@ -42,6 +42,9 @@ describe("YieldEscrow", function () {
     // Approve Escrow
     await mockUSDC.connect(client).approve(await escrow.getAddress(), ethers.MaxUint256);
     await mockUSDC.connect(freelancer).approve(await escrow.getAddress(), ethers.MaxUint256);
+
+    // Mint SBT for freelancer
+    await sbt.connect(owner).mint(freelancer.address);
   });
 
   it("should create, fund, and release a milestone successfully", async function () {
@@ -136,9 +139,78 @@ describe("YieldEscrow", function () {
   });
 
   it("should revert Soulbound Reputation token transfers", async function () {
-    await sbt.connect(owner).mint(freelancer.address);
     const tokenId = 1;
     await expect(sbt.connect(freelancer).transferFrom(freelancer.address, other.address, tokenId))
       .to.be.revertedWith("Err: Token is Soulbound");
+  });
+
+  // --- New Job/Tranche flow tests ---
+
+  it("should create, fund, and release a multi-tranche job", async function () {
+    const amounts = [ethers.parseUnits("500", 6), ethers.parseUnits("500", 6)];
+    const cids = ["ipfs://req1", "ipfs://req2"];
+    
+    await escrow.connect(client).createJob(freelancer.address, amounts, cids);
+    
+    // Fund Job
+    await escrow.connect(client).fundJob(1);
+    
+    // Stake Freelancer
+    await escrow.connect(freelancer).stakeFreelancerJob(1);
+    
+    // Tranche 0: Submit & Release
+    await escrow.connect(freelancer)["submitDeliverable(uint256,uint256,string)"](1, 0, "ipfs://del1");
+    await expect(escrow.connect(client).releaseTranche(1, 0))
+      .to.emit(escrow, "TrancheFundsReleased")
+      .withArgs(1, 0, freelancer.address, amounts[0]);
+      
+    // Tranche 1: Submit & Release (Last tranche returns stakes)
+    await escrow.connect(freelancer)["submitDeliverable(uint256,uint256,string)"](1, 1, "ipfs://del2");
+    
+    const initialFreelancerBal = await mockUSDC.balanceOf(freelancer.address);
+    const initialClientBal = await mockUSDC.balanceOf(client.address);
+    
+    await expect(escrow.connect(client).releaseTranche(1, 1))
+      .to.emit(escrow, "TrancheFundsReleased")
+      .withArgs(1, 1, freelancer.address, amounts[1] + STAKE_AMOUNT);
+      
+    const finalFreelancerBal = await mockUSDC.balanceOf(freelancer.address);
+    const finalClientBal = await mockUSDC.balanceOf(client.address);
+    
+    // Freelancer gets amount[1] + their stake.
+    expect(finalFreelancerBal - initialFreelancerBal).to.equal(amounts[1] + STAKE_AMOUNT);
+    // Client gets their stake back
+    expect(finalClientBal - initialClientBal).to.equal(STAKE_AMOUNT);
+  });
+
+  it("should handle multi-tranche dispute correctly", async function () {
+    const amounts = [ethers.parseUnits("500", 6), ethers.parseUnits("500", 6)];
+    const cids = ["ipfs://req1", "ipfs://req2"];
+    
+    await escrow.connect(client).createJob(freelancer.address, amounts, cids);
+    await escrow.connect(client).fundJob(1);
+    await escrow.connect(freelancer).stakeFreelancerJob(1);
+    
+    // Tranche 0: Submit & Release
+    await escrow.connect(freelancer)["submitDeliverable(uint256,uint256,string)"](1, 0, "ipfs://del1");
+    await escrow.connect(client).releaseTranche(1, 0);
+      
+    // Tranche 1: Dispute
+    await escrow.connect(freelancer)["submitDeliverable(uint256,uint256,string)"](1, 1, "ipfs://del2");
+    await escrow.connect(client)["raiseDispute(uint256,uint256)"](1, 1);
+    
+    const initialFreelancerBal = await mockUSDC.balanceOf(freelancer.address);
+    const initialClientBal = await mockUSDC.balanceOf(client.address);
+    
+    // Oracle resolves: 100% client (freelancer didn't deliver), no scope creep
+    await escrow.connect(oracle)["arbitrateDispute(uint256,uint256,uint256,uint256,bool)"](1, 1, 0, 100, false);
+    
+    const finalFreelancerBal = await mockUSDC.balanceOf(freelancer.address);
+    const finalClientBal = await mockUSDC.balanceOf(client.address);
+    
+    // Freelancer gets their stake back. (Payout = 0, Refund = 500. Not scope creep: Stakes returned)
+    expect(finalFreelancerBal - initialFreelancerBal).to.equal(STAKE_AMOUNT);
+    // Client gets 500 + their stake back
+    expect(finalClientBal - initialClientBal).to.equal(amounts[1] + STAKE_AMOUNT);
   });
 });

@@ -1,6 +1,8 @@
 'use client';
 import React, { useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
+import { useBlockchainAction } from '@/hooks/useBlockchainAction';
+import { parseUnits } from 'ethers';
 
 interface HireModalProps {
   onClose: () => void;
@@ -34,7 +36,7 @@ export default function HireModal({ onClose }: HireModalProps) {
     setTranches(updated);
   };
 
-  const totalAmount = tranches.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  const { execute, isDemo } = useBlockchainAction();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,18 +44,33 @@ export default function HireModal({ onClose }: HireModalProps) {
     
     setStatus('processing');
     
-    // Simulate transaction delay
-    setTimeout(() => {
-      createJob(
-        address,
-        tranches.map(t => ({ amount: Number(t.amount), requirements: t.requirements })),
-        title.trim()
-      );
-      setStatus('success');
-      setTimeout(() => {
-        onClose();
-      }, 2000);
-    }, 1500);
+    const amounts = tranches.map(t => parseUnits(t.amount.toString(), 6));
+    const reqs = tranches.map(t => t.requirements);
+    
+    await execute(
+      'createJob',
+      'Create Job',
+      async () => {
+        // Local state update
+        createJob({
+          title: title.trim(),
+          description: "New job created on-chain",
+          requiredSkills: [],
+          freelancerAddress: address,
+          tranches: tranches.map(t => ({ amount: Number(t.amount), requirements: t.requirements }))
+        });
+        setStatus('success');
+        setTimeout(() => onClose(), 2000);
+      },
+      async (contract) => {
+        // Real contract call
+        return await contract.createJob(address, amounts, reqs);
+      }
+    );
+    
+    if (status === 'processing') {
+       setStatus('idle'); // If it failed, reset
+    }
   };
 
   return (

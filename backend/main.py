@@ -1,8 +1,29 @@
+import os
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import random
+from pydantic_settings import BaseSettings
+from dotenv import load_dotenv
+
+from ai_engine import resolve_dispute_with_ai, optimize_scope_with_ai
+
+load_dotenv()
+
+class Settings(BaseSettings):
+    cors_origins: str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+
+settings = Settings()
 
 app = FastAPI(title="YieldEscrow AI Engine")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins.split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class ScopeRequest(BaseModel):
     description: str
@@ -17,37 +38,23 @@ class VerificationRequest(BaseModel):
     github_url: str = ""
     figma_url: str = ""
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
 @app.post("/scope/optimize")
 async def optimize_scope(req: ScopeRequest):
-    # Mock LLM generation for acceptance criteria
-    return {
-        "optimized_criteria": [
-            "Implement responsive UI for dashboard",
-            "Achieve 90% test coverage",
-            "Integrate wagmi for wallet connection"
-        ]
-    }
+    result = optimize_scope_with_ai(req.description)
+    return result
 
 @app.post("/dispute/resolve")
 async def resolve_dispute(req: DisputeRequest):
-    # Mock AI resolution logic based on random logic for demo
-    # In reality, this would use LangChain + GPT-4o
-    freelancer_payout = 70
-    client_refund = 30
-    scope_creep = False
-
-    if "extra feature" in req.chat_logs or "not in original" in req.chat_logs:
-        scope_creep = True
-        freelancer_payout = 100
-        client_refund = 0
-
-    return {
-        "freelancer_payout_percentage": freelancer_payout,
-        "client_refund_percentage": client_refund,
-        "dispute_reasoning": "The freelancer delivered the core requirements, but failed on mobile responsiveness. Client refund is justified.",
-        "confidence_score": 0.89,
-        "detect_scope_creep": scope_creep
-    }
+    result = resolve_dispute_with_ai(
+        requirements=req.milestone_requirements,
+        deliverables=req.submitted_deliverable,
+        chat_logs=req.chat_logs
+    )
+    return result
 
 @app.post("/verify/code")
 async def verify_code(req: VerificationRequest):
