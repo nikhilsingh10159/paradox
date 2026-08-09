@@ -64,16 +64,13 @@ const talent = [
 ];
 
 import Link from 'next/link';
-import { useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import HireModal from '@/components/HireModal';
 
 export default function FindTalentPage() {
   const { setPostJobModalOpen, postJobModalOpen } = useAppContext();
-  const [selectedFreelancer, setSelectedFreelancer] = useState<string | null>(null);
 
-  const handleHireClick = (name: string) => {
-    setSelectedFreelancer(name);
+  const handleHireClick = () => {
     setPostJobModalOpen(true);
   };
 
@@ -144,7 +141,7 @@ export default function FindTalentPage() {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => handleHireClick(person.name)}
+                  onClick={() => handleHireClick()}
                   className="flex-1 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
                 >
                   Hire & Fund Escrow
