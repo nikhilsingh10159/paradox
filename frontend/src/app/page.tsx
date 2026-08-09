@@ -1,105 +1,81 @@
 'use client';
+
+import { useGatedAction } from '@/hooks/useGatedAction';
 import { usePrivy } from '@privy-io/react-auth';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useAppContext } from '@/context/AppContext';
+import EscrowDashboard from '@/components/EscrowDashboard';
+import HeroSection from '@/components/HeroSection';
+import FeaturedGrid from '@/components/FeaturedGrid';
+import FeaturesSection from '@/components/FeaturesSection';
+import HowItWorks from '@/components/HowItWorks';
 
 export default function Home() {
-  const { ready, authenticated, login: privyLogin, logout: privyLogout, user } = usePrivy();
-  const { login: appLogin, hasProfile } = useAppContext();
-  const router = useRouter();
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [isRouting, setIsRouting] = useState(false);
+  const { handleGatedAction } = useGatedAction();
+  const { ready, authenticated, user } = usePrivy();
+  const { login: appLogin } = useAppContext();
 
   useEffect(() => {
-    if (ready && authenticated && user && !isRouting) {
-      setIsRouting(true);
-      const address = user.email?.address || user.wallet?.address || user.google?.email || user.github?.username || 'Unknown';
-      const exists = hasProfile(address);
-      const intent = typeof window !== 'undefined' ? sessionStorage.getItem('authIntent') : null;
-
-      if (intent === 'login') {
-        if (exists) {
-          appLogin(address);
-          sessionStorage.removeItem('authIntent');
-          router.push('/dashboard');
-        } else {
-          privyLogout();
-          setAuthError('Account not found. Please sign up first.');
-          sessionStorage.removeItem('authIntent');
-          setIsRouting(false);
-        }
-      } else if (intent === 'signup') {
-        appLogin(address);
-        sessionStorage.removeItem('authIntent');
-        if (exists) {
-          router.push('/dashboard');
-        } else {
-          router.push('/onboarding');
-        }
-      } else {
-        // Auto-routing for returning users (e.g. they refreshed the page)
-        appLogin(address);
-        if (exists) {
-          router.push('/dashboard');
-        } else {
-          router.push('/onboarding');
-        }
-      }
+    if (ready && authenticated && user) {
+      const address =
+        user.email?.address ||
+        user.wallet?.address ||
+        user.google?.email ||
+        user.github?.username ||
+        'Unknown';
+      appLogin(address);
     }
-  }, [ready, authenticated, user, hasProfile, appLogin, router, privyLogout, isRouting]);
+  }, [ready, authenticated, user, appLogin]);
 
-  const handleAuth = (intent: 'login' | 'signup') => {
-    setAuthError(null);
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('authIntent', intent);
-    }
-    privyLogin();
+  const handlePostJob = () => {
+    handleGatedAction(() => {
+      console.log('Opening post job modal');
+    });
   };
 
-  if (!ready) {
-    return (
-      <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center">
-        <div className="text-gray-500 font-medium">Loading...</div>
-      </div>
-    );
-  }
+  const handleExploreTalent = () => {
+    document.getElementById('showcase')?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 p-10 text-center">
-        <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center font-semibold text-white text-2xl mx-auto mb-6">in</div>
-        <h1 className="text-3xl font-semibold tracking-tight text-gray-900 mb-2">Web3 Hub</h1>
-        <p className="text-gray-500 font-medium tracking-tight mb-8">Connect your wallet or social account to get started.</p>
-        
-        {authError && (
-          <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl text-sm font-medium border border-red-100">
-            {authError}
-          </div>
+    <div className="min-h-screen bg-slate-50">
+      <main className="mx-auto max-w-7xl px-6 lg:px-8">
+        <HeroSection onPostJob={handlePostJob} onExploreTalent={handleExploreTalent} />
+
+        {authenticated && (
+          <section className="mb-16">
+            <EscrowDashboard />
+          </section>
         )}
 
-        <div className="space-y-4">
-          <button 
-            onClick={() => handleAuth('login')}
-            className="w-full bg-black hover:bg-gray-800 text-white px-8 py-4 rounded-2xl font-semibold tracking-tight transition-colors"
-          >
-            Log In
-          </button>
-          
-          <div className="relative flex items-center py-2">
-            <div className="flex-grow border-t border-gray-100"></div>
-            <span className="flex-shrink-0 mx-4 text-gray-400 text-sm font-medium">or</span>
-            <div className="flex-grow border-t border-gray-100"></div>
-          </div>
+        <FeaturedGrid />
 
-          <button 
-            onClick={() => handleAuth('signup')}
-            className="w-full bg-white hover:bg-gray-50 text-gray-900 border-2 border-gray-200 px-8 py-4 rounded-2xl font-semibold tracking-tight transition-colors"
-          >
-            Sign Up
-          </button>
-        </div>
-      </div>
+        <FeaturesSection />
+
+        <HowItWorks />
+
+        <section id="pricing" className="mt-24 scroll-mt-24 pb-24">
+          <div className="text-center">
+            <span className="inline-block rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
+              TRANSPARENT PRICING
+            </span>
+            <h2 className="mt-2 text-3xl font-extrabold text-slate-900">Simple Pricing</h2>
+            <p className="mx-auto mt-3 max-w-xl text-slate-500">
+              No subscriptions. No hidden charges. Pay only when work is completed.
+            </p>
+          </div>
+          <div className="mx-auto mt-10 max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <p className="text-4xl font-extrabold text-slate-900">
+              2.5<span className="text-2xl text-slate-500">%</span>
+            </p>
+            <p className="mt-2 font-semibold text-slate-900">Platform fee per contract</p>
+            <p className="mt-3 text-sm text-slate-500">
+              Funds are released from escrow only after milestone approval — you stay in control
+              every step of the way.
+            </p>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }

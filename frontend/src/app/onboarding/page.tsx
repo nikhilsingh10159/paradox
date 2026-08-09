@@ -87,7 +87,7 @@ export default function OnboardingWizard() {
     // Simulate deploying the Soulbound Token
     setTimeout(() => {
       setIsDeploying(false);
-      router.push('/dashboard');
+      router.push(role === 'Client' ? '/client' : '/dashboard');
     }, 2000);
   };
 

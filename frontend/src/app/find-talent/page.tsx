@@ -1,7 +1,5 @@
 'use client';
 
-import TopNav from '@/components/TopNav';
-
 const talent = [
   {
     id: 1,
@@ -68,7 +66,6 @@ const talent = [
 export default function FindTalentPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <TopNav />
       <main className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
         <header className="mb-8 rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">

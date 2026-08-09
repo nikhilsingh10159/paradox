@@ -2,7 +2,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
-import TopNav from '../../components/TopNav';
 
 export default function DashboardLayout({
   children,
@@ -26,7 +25,6 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-slate-50 text-slate-900 antialiased">
       {role === 'Client' && <div className="h-1 w-full bg-sky-600" />}
       {role === 'Freelancer' && <div className="h-1 w-full bg-violet-600" />}
-      <TopNav />
       <main className="mx-auto w-full max-w-7xl flex-grow px-6 py-10 lg:px-8">
         <div className="space-y-10">{children}</div>
       </main>
