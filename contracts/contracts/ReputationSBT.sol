@@ -36,6 +36,9 @@ contract ReputationSBT is ERC721, IERC5192, Ownable {
         uint8 completionRate; // 0-100
         uint8 trustTier; // 1-5
         uint256 totalJobs;
+        uint256 successfulJobs;
+        uint256 totalDisputes;
+        uint256 disputesWon;
     }
 
     mapping(uint256 => ReputationScore) public profiles;
@@ -74,7 +77,10 @@ contract ReputationSBT is ERC721, IERC5192, Ownable {
             antiGhostingRating: 100,
             completionRate: 100,
             trustTier: 1,
-            totalJobs: 0
+            totalJobs: 0,
+            successfulJobs: 0,
+            totalDisputes: 0,
+            disputesWon: 0
         });
 
         emit Locked(tokenId);
@@ -102,6 +108,91 @@ contract ReputationSBT is ERC721, IERC5192, Ownable {
         profile.totalJobs++;
 
         emit ReputationUpdated(tokenId, profile);
+    }
+
+    function _recalculateTrustTier(ReputationScore storage profile) internal {
+        if (profile.totalJobs < 3) {
+            profile.trustTier = 1;
+        } else if (profile.totalJobs < 10) {
+            profile.trustTier = 2;
+        } else if (profile.totalJobs < 25) {
+            profile.trustTier = 3;
+        } else if (profile.totalJobs < 50) {
+            profile.trustTier = 4;
+        } else {
+            profile.trustTier = 5;
+        }
+    }
+
+    function recordSuccess(address user) external onlyAuthorized {
+        uint256 tokenId = userToTokenId[user];
+        require(tokenId != 0, "User does not have an SBT");
+
+        ReputationScore storage profile = profiles[tokenId];
+        profile.totalJobs++;
+        profile.successfulJobs++;
+        profile.completionRate = uint8((profile.successfulJobs * 100) / profile.totalJobs);
+
+        if (profile.completionRate > 90) {
+            profile.deliverySpeed = 95;
+        } else {
+            if (profile.deliverySpeed >= 5) {
+                profile.deliverySpeed -= 5;
+            } else {
+                profile.deliverySpeed = 0;
+            }
+        }
+
+        _recalculateTrustTier(profile);
+        emit ReputationUpdated(tokenId, profile);
+    }
+
+    function recordDisputeOutcome(address user, bool won) external onlyAuthorized {
+        uint256 tokenId = userToTokenId[user];
+        require(tokenId != 0, "User does not have an SBT");
+
+        ReputationScore storage profile = profiles[tokenId];
+        profile.totalJobs++;
+        profile.totalDisputes++;
+
+        if (won) {
+            profile.disputesWon++;
+            profile.successfulJobs++;
+        } else {
+            if (profile.antiGhostingRating >= 10) {
+                profile.antiGhostingRating -= 10;
+            } else {
+                profile.antiGhostingRating = 0;
+            }
+        }
+
+        if (profile.totalDisputes > 0) {
+            profile.disputeWinRate = uint8((profile.disputesWon * 100) / profile.totalDisputes);
+        } else {
+            profile.disputeWinRate = 50;
+        }
+
+        profile.completionRate = uint8((profile.successfulJobs * 100) / profile.totalJobs);
+        _recalculateTrustTier(profile);
+
+        emit ReputationUpdated(tokenId, profile);
+    }
+
+    function getReputation(address user) external view returns (uint8, uint8, uint8, uint8, uint8, uint256, uint256, uint256, uint256) {
+        uint256 tokenId = userToTokenId[user];
+        require(tokenId != 0, "User does not have an SBT");
+        ReputationScore memory profile = profiles[tokenId];
+        return (
+            profile.deliverySpeed,
+            profile.disputeWinRate,
+            profile.antiGhostingRating,
+            profile.completionRate,
+            profile.trustTier,
+            profile.totalJobs,
+            profile.successfulJobs,
+            profile.totalDisputes,
+            profile.disputesWon
+        );
     }
 
     /// @inheritdoc IERC5192

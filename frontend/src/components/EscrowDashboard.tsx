@@ -2,142 +2,249 @@
 import React, { useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import HireModal from './HireModal';
-import { useWallets } from '@privy-io/react-auth';
-import { BrowserProvider, Contract } from 'ethers';
-import { ESCROW_CONTRACT_ADDRESS, ESCROW_ABI } from '@/config/contracts';
 
 export default function EscrowDashboard() {
-  const { escrows, updateEscrowStatus } = useAppContext();
-  const { wallets } = useWallets();
+  const { jobs, userProfile, releaseTranche, submitTranche } = useAppContext();
   const [showModal, setShowModal] = useState(false);
-  const [deliverables, setDeliverables] = useState<{[key:string]: string}>({});
-  
-  // Track loading state for each escrow ID
-  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [deliverableLinks, setDeliverableLinks] = useState<{ [key: string]: string }>({});
 
-  const handleDeliverableChange = (id: string, val: string) => {
-    setDeliverables(prev => ({...prev, [id]: val}));
+  const role = userProfile?.role;
+  const isClient = role === 'Client';
+
+  const statusStyles: Record<string, string> = {
+    Funded: 'border-blue-200 bg-blue-50 text-blue-700',
+    Submitted: 'border-amber-200 bg-amber-50 text-amber-700',
+    Released: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    Disputed: 'border-red-200 bg-red-50 text-red-700',
+    Pending: 'border-slate-200 bg-slate-100 text-slate-600',
   };
 
-  const handleSubmit = (id: string) => {
-    updateEscrowStatus(id, "Under AI Review", { deliverableLink: deliverables[id] });
+  const normalizeStatus = (status: string) => {
+    if (status === 'Submitted') return 'Submitted for Review';
+    if (status === 'Funded') return 'Funded in Vault';
+    if (status === 'Released') return 'Released';
+    if (status === 'Disputed') return 'Disputed';
+    return 'Pending';
   };
 
-  const executeEscrowAction = async (id: string, actionName: 'release' | 'refund') => {
-    if (!wallets.length) {
-      alert("Please connect a wallet first.");
-      return;
-    }
-
-    try {
-      setLoadingAction(`${id}-${actionName}`);
-      
-      const wallet = wallets[0];
-      const provider = await wallet.getEthereumProvider();
-      const ethersProvider = new BrowserProvider(provider);
-      const signer = await ethersProvider.getSigner();
-
-      const escrowContract = new Contract(ESCROW_CONTRACT_ADDRESS, ESCROW_ABI, signer);
-
-      if (actionName === 'release') {
-        const tx = await escrowContract.releaseToFreelancer(id);
-        await tx.wait();
-        updateEscrowStatus(id, "Released");
-      } else if (actionName === 'refund') {
-        const tx = await escrowContract.refundClient(id);
-        await tx.wait();
-        updateEscrowStatus(id, "Disputed"); // Using Disputed as a fallback for refunded state visually
-      }
-      
-    } catch (error: unknown) {
-      console.error(error);
-      const e = error as { reason?: string, message?: string };
-      alert(e?.reason || e?.message || "Transaction failed or was rejected.");
-    } finally {
-      setLoadingAction(null);
-    }
+  const handleDeliverableChange = (trancheId: string, val: string) => {
+    setDeliverableLinks(prev => ({ ...prev, [trancheId]: val }));
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center mb-2">
-        <h2 className="text-2xl font-semibold tracking-tight text-gray-900">Active Escrows</h2>
-        <button onClick={() => setShowModal(true)} className="bg-black hover:bg-gray-800 text-white text-sm font-medium tracking-tight py-2 px-5 rounded-full transition-colors">
-          + New Milestone
-        </button>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+          {isClient ? 'Active Jobs' : 'Active Gigs'}
+        </h2>
+        {isClient && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+          >
+            + New Job
+          </button>
+        )}
       </div>
 
-      {escrows.length === 0 ? (
-        <p className="text-gray-500 text-sm text-center py-12 font-medium">No active milestones.</p>
+      {jobs.length === 0 ? (
+        <div className="rounded-[28px] border border-slate-200 bg-white p-12 text-center text-slate-500 shadow-sm">
+          No active {isClient ? 'jobs' : 'gigs'}.
+        </div>
       ) : (
-        escrows.map(escrow => (
-          <div key={escrow.id} className="p-8 bg-white rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
-            <h2 className="text-xl font-semibold mb-6 tracking-tight text-gray-900">
-              Milestone #{escrow.id}
-            </h2>
-            
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 p-6 bg-[#F5F5F7] rounded-2xl gap-6">
-              <div>
-                <p className="text-gray-500 text-sm font-medium mb-1">Escrow Amount</p>
-                <p className="text-3xl font-semibold tracking-tight text-gray-900">${escrow.amount.toLocaleString()} <span className="text-gray-500 text-lg font-medium">Platform Coins</span></p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-sm font-medium mb-2">Status</p>
-                <span className={`px-4 py-1.5 rounded-full text-sm font-semibold tracking-tight ${
-                  escrow.status === 'Funded' ? 'bg-[#E8F0FE] text-[#1967D2]' : 
-                  escrow.status === 'Under AI Review' ? 'bg-[#F3E8FF] text-[#7E22CE]' : 
-                  escrow.status === 'Disputed' ? 'bg-[#FCE8E8] text-[#C5221F]' : 
-                  'bg-[#E6F4EA] text-[#137333]'
-                }`}>
-                  {escrow.status}
-                </span>
-              </div>
-            </div>
-
-            <div className="mb-8">
-              <p className="text-gray-900 font-medium tracking-tight mb-2">Requirements</p>
-              <p className="text-gray-500 tracking-tight leading-relaxed">{escrow.description}</p>
-            </div>
-
-            <div className="space-y-4">
-              {escrow.status === "Funded" && (
-                <div className="flex gap-4">
-                  <input 
-                    type="text" 
-                    placeholder="GitHub PR or Figma URL..." 
-                    value={deliverables[escrow.id] || ""}
-                    onChange={e => handleDeliverableChange(escrow.id, e.target.value)}
-                    className="flex-1 bg-[#F5F5F7] border border-transparent rounded-2xl px-5 py-3 focus:outline-none focus:bg-white focus:border-gray-300 focus:ring-4 focus:ring-gray-100 transition-all text-gray-900 font-medium placeholder-gray-400"
-                  />
-                  <button onClick={() => handleSubmit(escrow.id)} className="px-8 py-3 bg-black hover:bg-gray-800 text-white rounded-2xl font-medium tracking-tight transition-colors">
-                    Submit Deliverable
-                  </button>
-                </div>
-              )}
-
-              {escrow.status === "Under AI Review" && (
-                <div className="flex gap-4 pt-6 border-t border-gray-100">
-                  <button 
-                    onClick={() => executeEscrowAction(escrow.id, 'release')} 
-                    disabled={loadingAction === `${escrow.id}-release` || loadingAction === `${escrow.id}-refund`}
-                    className="flex-1 px-6 py-4 bg-black hover:bg-gray-800 text-white rounded-2xl font-medium tracking-tight transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
-                  >
-                    {loadingAction === `${escrow.id}-release` && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
-                    Approve & Release Coins
-                  </button>
-                  <button 
-                    onClick={() => executeEscrowAction(escrow.id, 'refund')} 
-                    disabled={loadingAction === `${escrow.id}-release` || loadingAction === `${escrow.id}-refund`}
-                    className="flex-1 px-6 py-4 bg-[#FCE8E8] hover:bg-[#F9D2D2] text-[#C5221F] rounded-2xl font-medium tracking-tight transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
-                  >
-                    {loadingAction === `${escrow.id}-refund` && <div className="w-4 h-4 border-2 border-red-500/30 border-t-[#C5221F] rounded-full animate-spin"></div>}
-                    Request Refund
-                  </button>
-                </div>
-              )}
-            </div>
+        <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+          <div className="hidden grid-cols-[2.1fr_1.3fr_1.2fr] border-b border-slate-200 bg-slate-50 px-6 py-3 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500 md:grid">
+            <span>Project</span>
+            <span>Freelancer</span>
+            <span>Milestones</span>
           </div>
-        ))
+
+          {jobs.map(job => {
+            const hasSubmitted = job.tranches.some(tranche => tranche.status === 'Submitted');
+            const hasFunded = job.tranches.some(tranche => tranche.status === 'Funded');
+            const statusSummary = hasSubmitted
+              ? 'Submitted for Review'
+              : hasFunded
+                ? 'Funded in Vault'
+                : 'In Progress';
+
+            return (
+              <div key={job.id} className="border-b border-slate-200 px-4 py-5 last:border-b-0 md:px-6">
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900">{job.title}</h3>
+                        <div className="mt-1 flex items-center gap-3 text-xs font-medium text-slate-500">
+                          <span>{new Date(job.createdAt).toLocaleDateString()}</span>
+                          <span>•</span>
+                          <span>${job.totalAmount.toLocaleString()} total</span>
+                        </div>
+                      </div>
+                      <span className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${statusStyles[hasSubmitted ? 'Submitted' : hasFunded ? 'Funded' : 'Pending']}`}>
+                        {statusSummary}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 xl:justify-end">
+                    <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 px-3 py-2">
+                      <img src={job.freelancerAvatar || 'https://i.pravatar.cc/150'} alt={job.freelancerName || 'Freelancer'} className="h-9 w-9 rounded-full object-cover" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">{job.freelancerName || 'Freelancer'}</p>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                          <span>{job.freelancerAddress.slice(0, 6)}...{job.freelancerAddress.slice(-4)}</span>
+                          <a
+                            href={`https://etherscan.io/address/${job.freelancerAddress.replace(/[^a-zA-Z0-9]/g, '')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-slate-400 transition hover:text-slate-700"
+                            aria-label="View wallet on Etherscan"
+                          >
+                            ↗
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                      aria-label="Chat with freelancer"
+                    >
+                      💬
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Milestone Progress</p>
+                      <span className="text-xs font-medium text-slate-500">{job.tranches.filter(t => t.status === 'Released').length}/{job.tranches.length} complete</span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {job.tranches.map((tranche, idx) => (
+                        <div key={tranche.id} className="flex items-start gap-3">
+                          <div className="flex flex-col items-center pt-1">
+                            <span className={`h-3.5 w-3.5 rounded-full border-2 ${
+                              tranche.status === 'Released'
+                                ? 'border-emerald-500 bg-emerald-500'
+                                : tranche.status === 'Submitted'
+                                  ? 'border-amber-400 bg-amber-400'
+                                  : tranche.status === 'Disputed'
+                                    ? 'border-red-500 bg-red-500'
+                                    : tranche.status === 'Funded'
+                                      ? 'border-blue-500 bg-blue-500'
+                                      : 'border-slate-300 bg-slate-100'
+                            }`} />
+                            {idx < job.tranches.length - 1 && <span className="my-1 h-8 w-px bg-slate-200" />}
+                          </div>
+
+                          <div className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-semibold text-slate-800">Milestone {idx + 1}</p>
+                              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyles[tranche.status] || 'border-slate-200 bg-slate-100 text-slate-600'}`}>
+                                {normalizeStatus(tranche.status)}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500">{tranche.requirements}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between text-sm text-slate-600">
+                      <span>Escrow</span>
+                      <span className="font-semibold text-slate-900">${job.totalAmount.toLocaleString()}</span>
+                    </div>
+
+                    {hasSubmitted && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const submittedTranche = job.tranches.find(t => t.status === 'Submitted');
+                          if (submittedTranche) releaseTranche(job.id, submittedTranche.id);
+                        }}
+                        className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                      >
+                        Review Work & Approve Release
+                      </button>
+                    )}
+
+                    {!hasSubmitted && hasFunded && (
+                      <>
+                        <button
+                          type="button"
+                          className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                        >
+                          View Agreement Clauses
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                        >
+                          Request Refund
+                        </button>
+                      </>
+                    )}
+
+                    {!hasSubmitted && !hasFunded && (
+                      <button
+                        type="button"
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500 opacity-80"
+                        disabled
+                      >
+                        Awaiting milestone update
+                      </button>
+                    )}
+
+                    {isClient && hasSubmitted && (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                        <p className="font-semibold text-slate-700">Deliverable link</p>
+                        <a
+                          href={job.tranches.find(t => t.status === 'Submitted')?.deliverableLink || '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-1 block truncate text-blue-600 hover:underline"
+                        >
+                          {job.tranches.find(t => t.status === 'Submitted')?.deliverableLink || 'No link provided'}
+                        </a>
+                      </div>
+                    )}
+
+                    {!isClient && job.tranches.some(tranche => tranche.status === 'Funded') && (
+                      <div className="space-y-2">
+                        {job.tranches.filter(tranche => tranche.status === 'Funded').map(tranche => (
+                          <div key={tranche.id} className="space-y-2">
+                            <input
+                              type="text"
+                              value={deliverableLinks[tranche.id] || ''}
+                              onChange={(e) => handleDeliverableChange(tranche.id, e.target.value)}
+                              placeholder="Paste deliverable link..."
+                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-300 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => submitTranche(job.id, tranche.id, deliverableLinks[tranche.id] || '')}
+                              disabled={!deliverableLinks[tranche.id]}
+                              className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Submit Work
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {showModal && <HireModal onClose={() => setShowModal(false)} />}

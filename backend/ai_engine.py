@@ -11,7 +11,7 @@ def resolve_dispute_with_ai(requirements: str, deliverables: str, chat_logs: lis
     
     prompt = PromptTemplate(
         input_variables=["requirements", "deliverables", "chat_logs"],
-        template=\"\"\"
+        template="""
         You are an unbiased AI arbitrator for a freelance escrow smart contract.
         
         Milestone Requirements: {requirements}
@@ -26,7 +26,7 @@ def resolve_dispute_with_ai(requirements: str, deliverables: str, chat_logs: lis
         - dispute_reasoning (str)
         - confidence_score (float 0.0-1.0)
         - detect_scope_creep (bool)
-        \"\"\"
+        """
     )
     
     # Mocking LLM Output for now since we don't have API keys

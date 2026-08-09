@@ -25,13 +25,15 @@ describe("YieldEscrow", function () {
       await mockUSDC.getAddress(),
       await mockAave.getAddress(),
       ethers.ZeroAddress, // mock aToken
-      oracle.address
+      oracle.address,
+      ethers.ZeroAddress  // mock reputationSBT (set properly below)
     );
 
     // Deploy ReputationSBT
     const ReputationSBT = await ethers.getContractFactory("ReputationSBT");
     sbt = await ReputationSBT.deploy();
     await sbt.setEscrowContract(await escrow.getAddress());
+    await escrow.setReputationSBT(await sbt.getAddress());
 
     // Mint USDC
     await mockUSDC.mint(client.address, ethers.parseUnits("10000", 6));

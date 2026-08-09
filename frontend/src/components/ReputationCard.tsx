@@ -1,57 +1,110 @@
+'use client';
 import React from 'react';
+import { useAppContext, ReputationData } from '@/context/AppContext';
 
-export default function ReputationCard() {
+interface ReputationCardProps {
+  reputation?: ReputationData;
+}
+
+export default function ReputationCard({ reputation: propReputation }: ReputationCardProps) {
+  const { userProfile } = useAppContext();
+  const reputation = propReputation || userProfile?.reputation;
+
+  if (!reputation) return null;
+
+  const getTierClass = (tier: number) => {
+    switch(tier) {
+      case 1: return 'from-purple-500 to-pink-500 animate-badge-glow shadow-purple-500/50';
+      case 2: return 'from-yellow-400 to-yellow-600 shadow-yellow-500/50';
+      case 3: return 'from-gray-300 to-gray-500 shadow-gray-400/50';
+      default: return 'from-amber-600 to-amber-800 shadow-amber-700/50';
+    }
+  };
+
+  const getTierName = (tier: number) => {
+    switch(tier) {
+      case 1: return 'Diamond';
+      case 2: return 'Gold';
+      case 3: return 'Silver';
+      default: return 'Bronze';
+    }
+  };
+
+  const getRingColor = (value: number) => {
+    if (value > 80) return 'stroke-green-400';
+    if (value >= 50) return 'stroke-yellow-400';
+    return 'stroke-red-400';
+  };
+
+  const calculateOffset = (percentage: number) => {
+    return 283 - (283 * percentage) / 100;
+  };
+
+  const metrics = [
+    { label: 'Delivery Speed', value: reputation.deliverySpeed },
+    { label: 'Dispute Win Rate', value: reputation.disputeWinRate },
+    { label: 'Anti-Ghosting', value: reputation.antiGhostingRating },
+    { label: 'Completion Rate', value: reputation.completionRate }
+  ];
+
   return (
-    <div className="p-6 max-w-4xl mx-auto bg-gray-900 rounded-xl shadow-2xl text-white border border-gray-800 mt-8">
-      <div className="flex items-center justify-between border-b border-gray-800 pb-4 mb-4">
+    <div className="p-6 max-w-4xl mx-auto bg-gray-900 rounded-xl shadow-2xl text-white border border-gray-800 mt-8 backdrop-blur-md bg-opacity-90">
+      <div className="flex items-center justify-between border-b border-gray-800 pb-4 mb-6">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-2xl font-bold">
-            T1
+          <div className={`w-16 h-16 rounded-full bg-gradient-to-tr ${getTierClass(reputation.trustTier)} flex items-center justify-center text-2xl font-bold shadow-lg`}>
+            T{reputation.trustTier}
           </div>
           <div>
-            <h3 className="text-xl font-bold">Soulbound Reputation</h3>
-            <p className="text-gray-400">Tier 1 Elite Freelancer</p>
+            <h3 className="text-xl font-bold text-white/90">Soulbound Reputation</h3>
+            <p className="text-gray-400">Tier {reputation.trustTier} {getTierName(reputation.trustTier)}</p>
           </div>
         </div>
         <div className="text-right">
           <p className="text-sm text-gray-400">Trust Score</p>
-          <p className="text-3xl font-bold text-green-400">98/100</p>
+          <p className="text-3xl font-bold text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.5)]">{reputation.completionRate}/100</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 bg-gray-800 rounded-lg text-center">
-          <p className="text-gray-400 text-sm mb-1">Delivery Speed</p>
-          <p className="text-xl font-semibold">95%</p>
-        </div>
-        <div className="p-4 bg-gray-800 rounded-lg text-center">
-          <p className="text-gray-400 text-sm mb-1">Dispute Win Rate</p>
-          <p className="text-xl font-semibold">100%</p>
-        </div>
-        <div className="p-4 bg-gray-800 rounded-lg text-center">
-          <p className="text-gray-400 text-sm mb-1">Anti-Ghosting</p>
-          <p className="text-xl font-semibold text-green-400">Flawless</p>
-        </div>
-        <div className="p-4 bg-gray-800 rounded-lg text-center">
-          <p className="text-gray-400 text-sm mb-1">Completion Rate</p>
-          <p className="text-xl font-semibold">99%</p>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        {metrics.map((metric, idx) => (
+          <div key={idx} className="p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl flex flex-col items-center justify-center relative">
+            <div className="relative w-[90px] h-[90px] mb-3">
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" className="stroke-gray-700" strokeWidth="8" fill="none" />
+                <circle 
+                  cx="50" cy="50" r="45" 
+                  className={`${getRingColor(metric.value)} animate-progress-fill transition-all duration-1000 ease-out`} 
+                  strokeWidth="8" 
+                  fill="none" 
+                  strokeDasharray="283" 
+                  strokeDashoffset={calculateOffset(metric.value)}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-lg font-bold">{metric.value}%</span>
+              </div>
+            </div>
+            <p className="text-gray-400 text-sm font-medium text-center">{metric.label}</p>
+          </div>
+        ))}
       </div>
 
-      <div className="mt-6 p-4 bg-purple-900/20 border border-purple-500/30 rounded-lg">
-        <h4 className="font-semibold mb-2 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-purple-400"></span>
-          AI Dispute Analysis
+      <div className="mt-8 p-5 bg-white/5 backdrop-blur-md border border-white/10 rounded-xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-indigo-500 opacity-50"></div>
+        <h4 className="font-semibold mb-3 flex items-center gap-2 text-white/90">
+          <span className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse"></span>
+          AI Dispute Analysis Mock
         </h4>
-        <div className="h-4 bg-gray-800 rounded-full overflow-hidden flex mb-2">
-          <div className="h-full bg-green-500" style={{ width: '70%' }}></div>
-          <div className="h-full bg-red-500" style={{ width: '30%' }}></div>
+        <div className="h-3 bg-gray-800/80 rounded-full overflow-hidden flex mb-3 shadow-inner">
+          <div className="h-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.6)]" style={{ width: '70%' }}></div>
+          <div className="h-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.6)]" style={{ width: '30%' }}></div>
         </div>
-        <div className="flex justify-between text-sm text-gray-400">
+        <div className="flex justify-between text-xs font-medium text-gray-400">
           <span>70% Freelancer Payout</span>
           <span>30% Client Refund</span>
         </div>
-        <p className="text-sm text-gray-300 mt-4 italic border-l-2 border-purple-500 pl-3">
+        <p className="text-sm text-gray-300 mt-4 italic border-l-2 border-purple-500 pl-4 py-1">
           &quot;The freelancer delivered the core requirements, but failed on mobile responsiveness. Client refund is justified. Scope Creep: Clean.&quot;
         </p>
       </div>
