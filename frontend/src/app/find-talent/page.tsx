@@ -64,11 +64,23 @@ const talent = [
 ];
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import HireModal from '@/components/HireModal';
 
 export default function FindTalentPage() {
   const { setPostJobModalOpen, postJobModalOpen } = useAppContext();
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredTalent = talent.filter((person) => {
+    const q = searchTerm.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      person.name.toLowerCase().includes(q) ||
+      person.role.toLowerCase().includes(q) ||
+      person.skills.some((s) => s.toLowerCase().includes(q))
+    );
+  });
 
   const handleHireClick = () => {
     setPostJobModalOpen(true);
@@ -87,15 +99,22 @@ export default function FindTalentPage() {
             <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <input
                 type="text"
-                placeholder="Search by skill or address"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by skill, name, or role..."
                 className="w-full bg-transparent text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none"
               />
             </div>
           </div>
         </header>
 
-        <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {talent.map((person) => (
+        {filteredTalent.length === 0 ? (
+          <div className="rounded-[28px] border border-slate-200 bg-white p-12 text-center text-slate-500 shadow-sm">
+            No talent matching &quot;{searchTerm}&quot; found. Try searching for &quot;Solidity&quot; or &quot;React&quot;.
+          </div>
+        ) : (
+          <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {filteredTalent.map((person) => (
             <article key={person.id} className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
               <div className="flex items-start gap-4">
                 <img src={person.avatar} alt={person.name} className="h-14 w-14 rounded-full object-cover ring-2 ring-slate-100" />
@@ -150,6 +169,7 @@ export default function FindTalentPage() {
             </article>
           ))}
         </section>
+        )}
 
         {postJobModalOpen && (
           <HireModal onClose={() => setPostJobModalOpen(false)} />

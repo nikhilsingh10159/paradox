@@ -1,5 +1,7 @@
 'use client';
 import React, { useState } from 'react';
+import { useAppContext } from '@/context/AppContext';
+import HireModal from '@/components/HireModal';
 
 const mockProfiles = [
   { id: 1, name: "Alice Freelancer", address: "0x8B2...4D1A", tier: "T1", role: "Smart Contract Auditor", escrowed: "$45,200", skills: ["Solidity", "Foundry", "Security"], avatar: "https://i.pravatar.cc/150?u=alice" },
@@ -9,6 +11,7 @@ const mockProfiles = [
 ];
 
 export default function NetworkPage() {
+  const { setPostJobModalOpen, postJobModalOpen } = useAppContext();
   const [dmProfile, setDmProfile] = useState<typeof mockProfiles[0] | null>(null);
   const [messages, setMessages] = useState<{sender: 'me' | 'them', text: string}[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -127,7 +130,11 @@ export default function NetworkPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <button className="bg-[#F5F5F7] hover:bg-[#E8E8ED] text-black px-4 py-2 rounded-full text-xs font-semibold transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setPostJobModalOpen(true)}
+                  className="bg-[#F5F5F7] hover:bg-[#E8E8ED] text-black px-4 py-2 rounded-full text-xs font-semibold transition-colors"
+                >
                   Propose Escrow
                 </button>
                 <button onClick={closeDM} className="w-8 h-8 flex items-center justify-center rounded-full bg-[#F5F5F7] text-gray-500 hover:text-gray-900 transition-colors">
@@ -182,6 +189,10 @@ export default function NetworkPage() {
             
           </div>
         </div>
+      )}
+
+      {postJobModalOpen && (
+        <HireModal onClose={() => setPostJobModalOpen(false)} />
       )}
     </>
   );

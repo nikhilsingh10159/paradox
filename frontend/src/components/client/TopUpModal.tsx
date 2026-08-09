@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useBlockchainAction } from '@/hooks/useBlockchainAction';
 
 interface TopUpModalProps {
@@ -14,6 +14,14 @@ export default function TopUpModal({ onClose, onConfirm }: TopUpModalProps) {
   const [amount, setAmount] = useState('1000');
   const { execute, isLoading } = useBlockchainAction();
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const parsedAmount = Number(amount);
 
   const handleTopUp = () => {
@@ -22,10 +30,10 @@ export default function TopUpModal({ onClose, onConfirm }: TopUpModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+    <div role="dialog" aria-modal="true" aria-labelledby="topup-modal-title" className="fixed inset-0 z-[80] flex items-center justify-center p-4">
       <button type="button" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} aria-label="Close modal" />
       <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
-        <h2 className="text-xl font-bold text-slate-900">Top Up Platform Coins</h2>
+        <h2 id="topup-modal-title" className="text-xl font-bold text-slate-900">Top Up Platform Coins</h2>
         <p className="mt-2 text-sm text-slate-500">
           Deposit USDC or purchase Platform Coins to fund escrow vaults.
         </p>

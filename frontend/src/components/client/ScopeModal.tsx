@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { Job } from '@/context/AppContext';
 
 interface ScopeModalProps {
@@ -8,12 +9,20 @@ interface ScopeModalProps {
 }
 
 export default function ScopeModal({ job, onClose }: ScopeModalProps) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+    <div role="dialog" aria-modal="true" aria-labelledby="scope-modal-title" className="fixed inset-0 z-[80] flex items-center justify-center p-4">
       <button type="button" className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} aria-label="Close modal" />
       <div className="relative max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
         <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Agreement Clauses</p>
-        <h2 className="mt-1 text-xl font-bold text-slate-900">{job.title}</h2>
+        <h2 id="scope-modal-title" className="mt-1 text-xl font-bold text-slate-900">{job.title}</h2>
         <p className="mt-3 text-sm leading-relaxed text-slate-600">{job.description}</p>
 
         {job.requiredSkills && job.requiredSkills.length > 0 && (

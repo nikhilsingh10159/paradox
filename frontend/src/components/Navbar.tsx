@@ -18,27 +18,61 @@ const appNavLinks = [
   { name: 'My Jobs', href: '/my-jobs' },
   { name: 'Find Talent', href: '/find-talent' },
   { name: 'Escrow Vault', href: '/escrow-vault' },
+  { name: 'Messages', href: '/messages' },
 ];
 
 export default function Navbar() {
-  const { userAddress, userProfile, logout: appLogout } = useAppContext();
-  const { authenticated, login, logout: privyLogout } = usePrivy();
+  const { userAddress, userProfile, updateProfile, logout: appLogout } = useAppContext();
+  const { authenticated, login, logout: privyLogout, user } = usePrivy();
   const { isDemo } = useEscrowContract();
   const pathname = usePathname();
+
+  const [isEditingName, setIsEditingName] = React.useState(false);
+  const [customNameInput, setCustomNameInput] = React.useState('');
+
   const isLandingPage = pathname === '/';
-  const navLinks = isLandingPage ? landingNavLinks : appNavLinks;
+  const navLinks = authenticated ? appNavLinks : (isLandingPage ? landingNavLinks : appNavLinks);
+
+  // Automatically prompt user for display username if authenticated but no custom handle is set
+  React.useEffect(() => {
+    if (authenticated && !userProfile?.handle && !isEditingName) {
+      const defaultName = user?.email?.address ? user.email.address.split('@')[0] : '';
+      setCustomNameInput(defaultName);
+      setIsEditingName(true);
+    }
+  }, [authenticated, userProfile?.handle, user?.email?.address]);
 
   const handleLogout = () => {
     appLogout();
     privyLogout();
   };
 
+  const handleSaveName = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = customNameInput.trim().replace(/^@/, '');
+    if (cleanName) {
+      updateProfile({ handle: cleanName });
+      setIsEditingName(false);
+    }
+  };
+
   const truncateAddress = (addr: string | null) => {
     if (!addr) return '0x0000...0000';
+    if (!addr.startsWith('0x') && addr.includes('@')) {
+      return addr;
+    }
     return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
   };
 
-  const role = userProfile?.role;
+  // User identity label: User Handle > User Email > Truncated Hex Address
+  const userHandle = userProfile?.handle;
+  const displayLabel = userHandle
+    ? `@${userHandle}`
+    : user?.email?.address
+      ? user.email.address
+      : truncateAddress(userAddress || user?.wallet?.address || null);
+
+  const currentRole = userProfile?.role || 'Client';
 
   return (
     <>
@@ -59,38 +93,22 @@ export default function Navbar() {
             <span className="text-base font-bold tracking-tight text-slate-900">Paradox</span>
           </Link>
 
-          {isLandingPage && (
-            <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-8 md:flex">
-              {navLinks.map((link) => (
+          <div className="hidden items-center gap-8 md:flex">
+            {navLinks.map((link) => {
+              const isActive = pathname === link.href;
+              return (
                 <Link
                   key={link.name}
                   href={link.href}
-                  className="text-sm font-medium text-slate-500 transition-colors hover:text-slate-900"
+                  className={`text-sm font-semibold transition-colors ${
+                    isActive ? 'text-blue-600 font-bold' : 'text-slate-500 hover:text-slate-900'
+                  }`}
                 >
                   {link.name}
                 </Link>
-              ))}
-            </div>
-          )}
-
-          {!isLandingPage && (
-            <div className="hidden items-center gap-8 md:flex">
-              {navLinks.map((link) => {
-                const isActive = pathname === link.href;
-                return (
-                  <Link
-                    key={link.name}
-                    href={link.href}
-                    className={`text-sm font-semibold transition-colors ${
-                      isActive ? 'text-slate-900' : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    {link.name}
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+              );
+            })}
+          </div>
 
           <div className="flex items-center gap-4">
             {!authenticated ? (
@@ -102,25 +120,39 @@ export default function Navbar() {
               </button>
             ) : (
               <>
-                {role && (
-                  <div className="hidden items-center gap-2 rounded-full border border-gray-200 bg-gray-100 px-3 py-1.5 sm:flex">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                      Role
-                    </span>
-                    <span className="text-sm font-semibold text-slate-900">{role}</span>
-                  </div>
-                )}
-
-                <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-slate-50 px-3 py-1.5 shadow-sm">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                  <span className="text-sm font-semibold text-slate-700">
-                    {truncateAddress(userAddress)}
+                <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    Role
                   </span>
+                  <select
+                    value={currentRole}
+                    onChange={(e) => updateProfile({ role: e.target.value as 'Client' | 'Freelancer' })}
+                    className="bg-transparent text-sm font-semibold text-slate-900 focus:outline-none cursor-pointer"
+                  >
+                    <option value="Client">Client</option>
+                    <option value="Freelancer">Freelancer</option>
+                  </select>
                 </div>
 
                 <button
+                  type="button"
+                  onClick={() => {
+                    setCustomNameInput(userProfile?.handle || '');
+                    setIsEditingName(true);
+                  }}
+                  title="Click to change your display username"
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3.5 py-1.5 shadow-xs transition hover:border-slate-300 hover:bg-slate-100"
+                >
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                  <span className="text-sm font-semibold text-slate-800">
+                    {displayLabel}
+                  </span>
+                  <span className="text-xs text-slate-400">✏️</span>
+                </button>
+
+                <button
                   onClick={handleLogout}
-                  className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-gray-300 hover:text-slate-900"
+                  className="rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-600 transition hover:border-gray-300 hover:text-slate-900"
                 >
                   Sign Out
                 </button>
@@ -129,6 +161,55 @@ export default function Navbar() {
           </div>
         </div>
       </nav>
+
+      {/* Display Name Modal Prompt */}
+      {isEditingName && (
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md">
+          <div className="relative w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-slate-900 mb-1">Choose Your Display Name</h3>
+            <p className="text-xs font-medium text-slate-500 mb-5">
+              Enter the username or handle you want shown across Paradox instead of your email or address.
+            </p>
+
+            <form onSubmit={handleSaveName} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Display Username
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">@</span>
+                  <input
+                    type="text"
+                    required
+                    value={customNameInput}
+                    onChange={(e) => setCustomNameInput(e.target.value)}
+                    placeholder="alex_builder"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 pl-9 pr-4 py-3 text-sm font-semibold text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                {userProfile?.handle && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingName(false)}
+                    className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white transition hover:bg-blue-700 shadow-sm"
+                >
+                  Save Username
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
