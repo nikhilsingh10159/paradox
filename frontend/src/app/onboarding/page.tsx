@@ -111,7 +111,7 @@ export default function OnboardingWizard() {
           {step === 1 && (
             <div className="animate-in fade-in slide-in-from-right-4 duration-500">
               <h2 className="text-3xl font-semibold tracking-tight text-gray-900 mb-2">Set up your profile</h2>
-              <p className="text-gray-500 font-medium tracking-tight mb-10">Choose how you&apos;ll appear on Web3 Hub.</p>
+              <p className="text-gray-500 font-medium tracking-tight mb-10">Choose how you will appear on Web3 Hub.</p>
               
               <div className="space-y-8">
                 <div className="flex items-center gap-6">

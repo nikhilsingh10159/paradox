@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 
 import { AppProvider } from "@/context/AppContext";
 import Providers from "./providers";
 import Navbar from "@/components/Navbar";
 import { ToastProvider } from "@/components/Toast";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Paradox — Smart Escrow & AI Dispute Platform",
@@ -24,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body>
         <Providers>
           <ToastProvider>
             <AppProvider>
