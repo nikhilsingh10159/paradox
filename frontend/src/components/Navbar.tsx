@@ -29,22 +29,39 @@ export default function Navbar() {
 
   const [isEditingName, setIsEditingName] = React.useState(false);
   const [customNameInput, setCustomNameInput] = React.useState('');
+  const [hasPrompted, setHasPrompted] = React.useState(true);
 
   const isLandingPage = pathname === '/';
   const navLinks = authenticated ? appNavLinks : (isLandingPage ? landingNavLinks : appNavLinks);
 
-  // Automatically prompt user for display username if authenticated but no custom handle is set
+  // Check if handle prompt was already dismissed for this wallet
   React.useEffect(() => {
-    if (authenticated && !userProfile?.handle && !isEditingName) {
+    if (typeof window !== 'undefined' && userAddress) {
+      const dismissed = localStorage.getItem(`paradox_name_dismissed_${userAddress}`);
+      setHasPrompted(dismissed === 'true');
+    }
+  }, [userAddress]);
+
+  // Prompt user ONCE for display username if authenticated, handle is empty, and not dismissed
+  React.useEffect(() => {
+    if (authenticated && userAddress && userProfile && !userProfile.handle && !hasPrompted && !isEditingName) {
       const defaultName = user?.email?.address ? user.email.address.split('@')[0] : '';
       setCustomNameInput(defaultName);
       setIsEditingName(true);
     }
-  }, [authenticated, userProfile?.handle, user?.email?.address, isEditingName]);
+  }, [authenticated, userAddress, userProfile, hasPrompted, isEditingName, user?.email?.address]);
 
   const handleLogout = () => {
     appLogout();
     privyLogout();
+  };
+
+  const handleDismissPrompt = () => {
+    if (typeof window !== 'undefined' && userAddress) {
+      localStorage.setItem(`paradox_name_dismissed_${userAddress}`, 'true');
+    }
+    setHasPrompted(true);
+    setIsEditingName(false);
   };
 
   const handleSaveName = (e: React.FormEvent) => {
@@ -52,7 +69,7 @@ export default function Navbar() {
     const cleanName = customNameInput.trim().replace(/^@/, '');
     if (cleanName) {
       updateProfile({ handle: cleanName });
-      setIsEditingName(false);
+      handleDismissPrompt();
     }
   };
 
@@ -190,15 +207,13 @@ export default function Navbar() {
               </div>
 
               <div className="flex gap-3 pt-2">
-                {userProfile?.handle && (
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingName(false)}
-                    className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleDismissPrompt}
+                  className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  {userProfile?.handle ? 'Cancel' : 'Remind Me Later'}
+                </button>
                 <button
                   type="submit"
                   className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white transition hover:bg-blue-700 shadow-sm"

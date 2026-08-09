@@ -1,5 +1,9 @@
 'use client';
 
+import React from 'react';
+import Link from 'next/link';
+import { useAppContext } from '@/context/AppContext';
+
 interface Talent {
   id: number;
   name: string;
@@ -71,70 +75,115 @@ const openJobs: Job[] = [
 ];
 
 export default function FeaturedGrid() {
+  const { setPostJobModalOpen } = useAppContext();
+
   return (
     <section id="showcase" className="mt-16 grid grid-cols-1 gap-8 lg:grid-cols-12">
       <div className="lg:col-span-7">
-        <h2 className="mb-4 text-xl font-bold text-slate-900">Featured Talent</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-slate-900">Featured Talent</h2>
+          <Link href="/find-talent" className="text-xs font-bold text-blue-600 hover:text-blue-700">
+            View All Talent →
+          </Link>
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {featuredTalent.map((talent) => (
-            <article
+            <div
               key={talent.id}
-              className="cursor-pointer rounded-2xl border border-slate-200/80 bg-white p-4 transition-all hover:border-slate-300"
+              className="group relative flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 card-shadow-hover transition-all duration-300 hover:border-blue-300"
             >
-              <div className="flex items-start gap-3">
-                <img
-                  src={talent.avatar}
-                  alt={talent.name}
-                  className="h-12 w-12 shrink-0 rounded-full object-cover"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="truncate font-semibold text-slate-900">{talent.name}</h3>
-                      <p className="truncate text-sm text-slate-500">{talent.role}</p>
+              <div>
+                <Link href="/find-talent" className="flex items-start gap-3">
+                  <img
+                    src={talent.avatar}
+                    alt={talent.name}
+                    className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-slate-100 transition-transform group-hover:scale-105"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="truncate font-bold text-slate-900 transition-colors group-hover:text-blue-600">
+                          {talent.name}
+                        </h3>
+                        <p className="truncate text-xs font-semibold text-slate-500">{talent.role}</p>
+                      </div>
+                      <span className="shrink-0 text-sm font-bold text-blue-600">{talent.rate}</span>
                     </div>
-                    <span className="shrink-0 text-sm font-semibold text-blue-600">{talent.rate}</span>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                      <span className="font-semibold text-amber-600">★ {talent.rating.toFixed(1)}</span>
+                      <span>{talent.completedJobs} contracts</span>
+                      <span className="font-semibold text-emerald-600">● {talent.availability}</span>
+                    </div>
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                    <span className="font-medium text-amber-600">★ {talent.rating.toFixed(1)}</span>
-                    <span>{talent.completedJobs} contracts</span>
-                    <span className="text-emerald-600">{talent.availability}</span>
-                  </div>
+                </Link>
+
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {talent.skills.map((skill) => (
+                    <span
+                      key={skill}
+                      className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600"
+                    >
+                      {skill}
+                    </span>
+                  ))}
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {talent.skills.map((skill) => (
-                  <span
-                    key={skill}
-                    className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
-                  >
-                    {skill}
-                  </span>
-                ))}
+
+              <div className="mt-5 flex gap-2 border-t border-slate-100 pt-3">
+                <Link
+                  href="/messages"
+                  className="flex-1 rounded-xl border border-slate-200 bg-white py-2 text-center text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Message
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setPostJobModalOpen(true)}
+                  className="flex-1 rounded-xl bg-slate-900 py-2 text-xs font-bold text-white transition hover:bg-slate-800"
+                >
+                  Hire & Escrow
+                </button>
               </div>
-            </article>
+            </div>
           ))}
         </div>
       </div>
 
       <div className="lg:col-span-5">
-        <h2 className="mb-4 text-xl font-bold text-slate-900">Open Jobs</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-slate-900">Open Opportunities</h2>
+          <Link href="/my-jobs" className="text-xs font-bold text-blue-600 hover:text-blue-700">
+            Browse All Jobs →
+          </Link>
+        </div>
         <div className="space-y-4">
           {openJobs.map((job) => (
-            <article
+            <div
               key={job.id}
-              className="rounded-2xl border border-slate-800 bg-slate-900 p-6 text-white shadow-sm"
+              className="rounded-2xl border border-slate-800 bg-slate-900 p-6 text-white card-shadow-hover transition-all"
             >
               <div className="mb-3 flex items-center justify-between gap-3">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <span className="rounded-full bg-slate-800 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-400">
                   {job.category}
                 </span>
-                <span className="shrink-0 text-xs text-slate-500">{job.posted}</span>
+                <span className="shrink-0 text-xs text-slate-400">{job.posted}</span>
               </div>
-              <h3 className="cursor-pointer text-lg font-bold text-white transition-colors hover:text-blue-400">
-                {job.title}
-              </h3>
-            </article>
+              <Link href="/my-jobs">
+                <h3 className="text-lg font-bold text-white transition-colors hover:text-blue-400">
+                  {job.title}
+                </h3>
+              </Link>
+              <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3">
+                <span className="text-xs font-semibold text-slate-400">Verified Client Escrow</span>
+                <button
+                  type="button"
+                  onClick={() => setPostJobModalOpen(true)}
+                  className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-blue-700"
+                >
+                  Apply Now
+                </button>
+              </div>
+            </div>
           ))}
         </div>
       </div>

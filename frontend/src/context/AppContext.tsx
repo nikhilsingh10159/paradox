@@ -273,8 +273,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const login = useCallback((address: string) => {
     setUserAddress(address);
     const profiles = getProfiles();
-    if (profiles[address]) {
-      setUserProfile(profiles[address]);
+    const localProf = profiles[address];
+
+    if (localProf) {
+      setUserProfile(localProf);
     } else {
       setUserProfile({
         handle: '',
@@ -295,6 +297,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         },
       });
     }
+
+    // Sync with Neon Serverless Postgres DB
+    fetch(`/api/user?address=${encodeURIComponent(address)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.dbConnected && data.profile && data.profile.handle) {
+          setUserProfile((prev) => {
+            const merged = { ...prev, ...data.profile };
+            const currentProfiles = getProfiles();
+            currentProfiles[address] = merged;
+            localStorage.setItem(PROFILES_KEY, JSON.stringify(currentProfiles));
+            return merged;
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const logout = useCallback(() => {
@@ -309,6 +327,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const profiles = getProfiles();
           profiles[userAddress] = newProfile;
           localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+
+          // Persist to Neon Postgres DB
+          fetch('/api/user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address: userAddress, ...newProfile }),
+          }).catch(() => {});
         }
         return newProfile;
       });
