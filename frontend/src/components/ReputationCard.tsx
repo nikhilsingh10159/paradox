@@ -52,7 +52,7 @@ export default function ReputationCard() {
           <span>30% Client Refund</span>
         </div>
         <p className="text-sm text-gray-300 mt-4 italic border-l-2 border-purple-500 pl-3">
-          "The freelancer delivered the core requirements, but failed on mobile responsiveness. Client refund is justified. Scope Creep: Clean."
+          &quot;The freelancer delivered the core requirements, but failed on mobile responsiveness. Client refund is justified. Scope Creep: Clean.&quot;
         </p>
       </div>
     </div>

@@ -62,11 +62,12 @@ export default function HireModal({ onClose, freelancerAddress = '', freelancerH
         onClose();
       }, 2000);
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
       setStatus('error');
       // Format ethers error gracefully if possible
-      setErrorMessage(error?.reason || error?.message || "Transaction failed or was rejected.");
+      const e = error as { reason?: string, message?: string };
+      setErrorMessage(e?.reason || e?.message || "Transaction failed or was rejected.");
     }
   };
 
@@ -143,7 +144,7 @@ export default function HireModal({ onClose, freelancerAddress = '', freelancerH
               {status === 'locking' && (
                 <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Locking Funds...</>
               )}
-              {status === 'idle' || status === 'error' ? 'Fund Escrow' : null}
+              {(status === 'idle' || status === 'error') ? 'Fund Escrow' : null}
             </button>
           </form>
         )}

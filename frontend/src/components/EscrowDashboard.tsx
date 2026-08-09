@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { useAppContext, EscrowStatus } from '@/context/AppContext';
+import { useAppContext } from '@/context/AppContext';
 import HireModal from './HireModal';
 import { useWallets } from '@privy-io/react-auth';
 import { BrowserProvider, Contract } from 'ethers';
@@ -49,9 +49,10 @@ export default function EscrowDashboard() {
         updateEscrowStatus(id, "Disputed"); // Using Disputed as a fallback for refunded state visually
       }
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      alert(error?.reason || error?.message || "Transaction failed or was rejected.");
+      const e = error as { reason?: string, message?: string };
+      alert(e?.reason || e?.message || "Transaction failed or was rejected.");
     } finally {
       setLoadingAction(null);
     }

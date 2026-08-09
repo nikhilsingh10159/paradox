@@ -34,7 +34,7 @@ export default function ProfileSidebar() {
 
         {userProfile.bio && (
           <p className="text-sm text-gray-600 text-center mb-6 px-2 italic">
-            "{userProfile.bio}"
+            &quot;{userProfile.bio}&quot;
           </p>
         )}
         
